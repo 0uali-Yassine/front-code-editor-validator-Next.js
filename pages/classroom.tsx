@@ -304,7 +304,7 @@ const ClassRoom: React.FC = () => {
             </div>
           </div>
 
-          <div className="mb-8 text-red-400">
+          <div className="mb-8 text-black">
             <div
               className="mb-8"
               dangerouslySetInnerHTML={{ __html: pageDescription }}
