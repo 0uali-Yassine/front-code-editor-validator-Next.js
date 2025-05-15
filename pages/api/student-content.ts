@@ -35,7 +35,7 @@ export default async function handler(
       console.error('Error fetching from backend:', fetchError);
     }
     
-    // If we can't get real data or there's no token, return mock data for development
+    // If we cant get data or theres no token, return mock data for development
     console.log('Returning mock data');
     return res.status(200).json({
       page: {

@@ -28,3 +28,4 @@ export interface UserType {
     createdAt: string;
     updatedAt: string;
 }
+
