@@ -19,7 +19,7 @@ export default async function handler(
 
   try {
     const { email, password } = req.body;
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://back-code-editor-validator.vercel.app';
 
     console.log('Login request body:', { email, password: '******' });
     console.log('Backend URL:', backendUrl);
