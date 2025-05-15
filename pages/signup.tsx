@@ -3,66 +3,40 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import useSWRMutation from 'swr/mutation';
 
-interface LoginCredentials {
+interface SignupCredentials {
+  name: string;
   email: string;
   password: string;
 }
 
-const fetchLogin = async (url: string, { arg }: { arg: LoginCredentials }) => {
-  console.log('Fetching login with:', url);
+const fetchSignup = async (url: string, { arg }: { arg: SignupCredentials }) => {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(arg),
-    credentials: 'include' // Important for cookies
+    body: JSON.stringify(arg)
   });
 
-  if (!res.ok) {
-    // Try to get error details if available
-    let errorMessage = 'Login failed';
-    try {
-      const errorData = await res.json();
-      errorMessage = errorData.message || errorMessage;
-    } catch (e) {
-      console.error('Error parsing error response:', e);
-    }
-    throw new Error(errorMessage);
-  }
-
+  if (!res.ok) throw new Error("Signup failed");
   return res.json();
 };
 
-const LoginPage: React.FC = () => {
+const SignupPage: React.FC = () => {
+  const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const { trigger, isMutating } = useSWRMutation('/api/auth/login', fetchLogin);
+
+  const { trigger, isMutating, error } = useSWRMutation('http://localhost:3000/api/signup', fetchSignup);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");
     
     try {
-      console.log('Submitting login form...');
-      const data = await trigger({ email, password });
-      console.log('Login successful:', data);
-      
-      const user = data.user;
-      
-      // User data is still stored in localStorage for app state
-      if (typeof window !== 'undefined') {
-        localStorage.setItem("user", JSON.stringify(user));
-      }
-
-      const role = user.role;
-      
-      if (role === "student") router.push("/home");
-      else if (role === "manager") router.push("/manager-dashboard");
-      else router.push("/unauthorized");
+      const res = await trigger({ name, email, password });
+      console.log("Signup success", res);
+      router.push('/');
     } catch (err) {
-      console.error("Login error:", err instanceof Error ? err.message : 'Unknown error');
-      setErrorMessage(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      console.error(err);
     }
   };
 
@@ -90,21 +64,33 @@ const LoginPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-md mx-auto p-6">
-        {/* Login Card */}
+        {/* Signup Card */}
         <div className="bg-white rounded-lg shadow-sm border p-8">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-800">Welcome back</h2>
-            <p className="text-gray-600 mt-2">Log in to your account to continue your learning journey</p>
+            <h2 className="text-2xl font-bold text-gray-800">Create your account</h2>
+            <p className="text-gray-600 mt-2">Join our community of developers and start learning</p>
           </div>
-
-          {errorMessage && (
-            <div className="bg-red-50 text-red-600 p-4 rounded-md mb-6">
-              {errorMessage}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit}>
             <div className="space-y-6">
+              <div>
+                <div>
+                  <label htmlFor="full-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    Full name
+                  </label>
+                  <input
+                    id="full-name"
+                    name="full-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Full name"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                   Email
@@ -116,20 +102,15 @@ const LoginPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border text-black border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your email"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <a href="#" className="text-sm text-blue-600 hover:text-blue-800">
-                    Forgot password?
-                  </a>
-                </div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
                 <input
                   id="password"
                   name="password"
@@ -138,52 +119,60 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your password"
+                  placeholder="Create a password"
                 />
+                <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
               </div>
 
-              <div className="flex items-center">
+              <div className="flex items-start">
                 <input
-                  id="remember-me"
-                  name="remember-me"
+                  id="terms"
+                  name="terms"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  required
+                  className="h-4 w-4 mt-1 text-blue-600 border-gray-300 rounded"
                 />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                  Remember me
+                <label htmlFor="terms" className="ml-2 block text-sm text-gray-700">
+                  I agree to the{" "}
+                  <a href="#" className="text-blue-600 hover:text-blue-800">
+                    Terms of Service
+                  </a>{" "}
+                  and{" "}
+                  <a href="#" className="text-blue-600 hover:text-blue-800">
+                    Privacy Policy
+                  </a>
                 </label>
               </div>
 
               <button
                 type="submit"
                 className="w-full bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition"
-                disabled={isMutating}
               >
-                {isMutating ? "Logging in..." : "Log in"}
+                {isMutating ? "Creating..." : "Create account"}
               </button>
             </div>
           </form>
 
           <div className="mt-8 text-center">
             <p className="text-gray-600">
-              Don&apos;t have an account?{" "}
-              <Link href="/signup">
+              Already have an account?{" "}
+              <Link href="/">
                 <a className="text-blue-600 hover:text-blue-800 font-medium">
-                  Sign up
+                  Log in
                 </a>
               </Link>
             </p>
           </div>
         </div>
 
-        {/* Social Login */}
+        {/* Social Signup */}
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+              <span className="px-2 bg-gray-50 text-gray-500">Or sign up with</span>
             </div>
           </div>
 
@@ -222,4 +211,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default SignupPage;
