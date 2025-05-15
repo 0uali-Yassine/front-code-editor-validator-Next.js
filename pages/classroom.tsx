@@ -72,8 +72,9 @@ const ClassRoom: React.FC = () => {
       setPageDescription(data.sections[0].description);
       setTypeSection(data.sections[0].type);
     }
-    console.log(data);
-  }, [data?.sections]);
+      console.log("useEffect: ",{data});
+    }, [data?.sections]);
+    console.log("Out UseEffect: ",{data});
 
   useEffect(() => {
     if (data?.sections && Array.isArray(data.sections)) {
