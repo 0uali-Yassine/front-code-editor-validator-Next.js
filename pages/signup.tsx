@@ -25,7 +25,7 @@ const SignupPage: React.FC = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
 
-  const { trigger, isMutating, error } = useSWRMutation('http://localhost:3000/api/signup', fetchSignup);
+  const { trigger, isMutating, error } = useSWRMutation(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/signup`, fetchSignup);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -48,6 +48,7 @@ const ClassRoom: React.FC = () => {
   const [showLectures, setShowLectures] = useState<boolean>(true);
   const [showAssignments, setShowAssignments] = useState<boolean>(false);
   const [showQuizzes, setShowQuizzes] = useState<boolean>(false);
+  const [fullData , setFullData] = useState<SectionType[]>([])
 
   const [pageTitle, setPageTitle] = useState<string>('');
   const [pageDescription, setPageDescription] = useState<string>('');
@@ -67,7 +68,8 @@ const ClassRoom: React.FC = () => {
   );
 
   useEffect(() => {
-    if (data?.sections && data.sections.length > 0) {
+    if (data?.sections && fullData.length === 0) {
+      setFullData(data?.sections)
       setPageTitle(data.sections[0].title);
       setPageDescription(data.sections[0].description);
       setTypeSection(data.sections[0].type);
