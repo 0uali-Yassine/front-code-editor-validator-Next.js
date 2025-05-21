@@ -6,7 +6,7 @@ import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
 import { dracula } from '@uiw/codemirror-theme-dracula';
 import { githubLight } from '@uiw/codemirror-theme-github';
-import { ChevronUp, ChevronDown, Play, RotateCcw, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react';
+import {  Play, RotateCcw, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react';
 
 const CodeEditore = () => {
   const [code, setCode] = useState(`# Start coding here
@@ -21,6 +21,7 @@ print("Hello World!")
   const [isDragging, setIsDragging] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
 
   const languages = [
     { id: 'python', name: 'Python', icon: '🐍' },
