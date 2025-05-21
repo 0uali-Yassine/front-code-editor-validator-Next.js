@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, Clock, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, Clock, User,Smile, Frown, BookX } from "lucide-react";
 import useSWR from 'swr';
 import CheckEditor from '../components/check-editor';
 import CodeEditore from '../components/code-editore';
@@ -225,12 +225,12 @@ const ClassRoom: React.FC = () => {
                       <Clock className='text-gray-400 h-5 w-5' />
                     ) : (
                       data?.sectionWithCode[0].isCorrect === "Correct" ? (
-                        <Clock className='text-green-400 h-5 w-5' />
+                        <Smile className='text-green-400 h-5 w-5' />
                       ) : (
                         data?.sectionWithCode[0].isCorrect === "Incorrect" ? (
-                          <Clock className='text-red-400 h-5 w-5' />
+                          <Frown className='text-red-400 h-5 w-5' />
                         ) : (
-                          <Clock className='text-yellow-400 h-5 w-5' />
+                          <BookX className='text-yellow-400 h-5 w-5' />
                         )
                       )
                     )

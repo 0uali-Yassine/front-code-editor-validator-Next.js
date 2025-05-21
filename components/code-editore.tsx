@@ -6,7 +6,7 @@ import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
 import { dracula } from '@uiw/codemirror-theme-dracula';
 import { githubLight } from '@uiw/codemirror-theme-github';
-import { ChevronUp, ChevronDown, Play, RotateCcw, Code, Eye, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Play, RotateCcw, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react';
 
 const CodeEditore = () => {
   const [code, setCode] = useState(`# Start coding here
@@ -15,7 +15,7 @@ print("Hello World!")
   const [output, setOutput] = useState('');
   const [activeTab, setActiveTab] = useState('Theme');
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('python');
   const [leftWidth, setLeftWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
