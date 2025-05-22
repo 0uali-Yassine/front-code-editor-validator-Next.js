@@ -7,6 +7,10 @@ import { javascript } from '@codemirror/lang-javascript';
 import { dracula } from '@uiw/codemirror-theme-dracula';
 import { githubLight } from '@uiw/codemirror-theme-github';
 import { ChevronUp, ChevronDown, Play, RotateCcw, Sun, Moon, Maximize2, Minimize2 } from 'lucide-react';
+import { FaPython } from "react-icons/fa";
+import { FaJsSquare } from "react-icons/fa";
+import { FaHtml5 } from "react-icons/fa6";
+import { FaCss3Alt } from "react-icons/fa";
 // import { loadPyodide } from '@pyodide/pyodide';
 // import { loadPyodide } from 'pyodide';
 // @ts-ignore - Skulpt types aren't great
@@ -39,10 +43,10 @@ print("Hello World!")
   const [isPyodideLoading, setIsPyodideLoading] = useState(false);
 
   const languages = [
-    { id: 'python', name: 'Python', icon: '🐍' },
-    { id: 'javascript', name: 'JavaScript', icon: '📜' },
-    { id: 'html', name: 'HTML', icon: '🌐' },
-    { id: 'css', name: 'CSS', icon: '🎨' },
+    { id: 'python', name: 'Python', icon: <FaPython/> },
+    { id: 'javascript', name: 'JavaScript', icon: <FaJsSquare/> },
+    { id: 'html', name: 'HTML', icon: <FaHtml5/> },
+    { id: 'css', name: 'CSS', icon: <FaCss3Alt/> },
   ];
 
   // Initialize Pyodide
@@ -51,15 +55,30 @@ print("Hello World!")
       const loadPyodideInstance = async () => {
         setIsPyodideLoading(true);
         try {
-          // Initialize Pyodide with explicit indexURL
-          const pyodideInstance = await window.loadPyodide({
-            indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
-            stdout: (text: string) => setOutput(prev => prev + text),
-            stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
-          });
-          await pyodideInstance.loadPackage(['micropip']);
-          setPyodide(pyodideInstance);
-          setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+          if (!window.loadPyodide) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js';
+            script.onload = async () => {
+              const pyodideInstance = await window.loadPyodide({
+                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+                stdout: (text: string) => setOutput(prev => prev + text),
+                stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
+              });
+              await pyodideInstance.loadPackage(['micropip']);
+              setPyodide(pyodideInstance);
+              setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+            };
+            document.body.appendChild(script);
+          } else {
+            const pyodideInstance = await window.loadPyodide({
+              indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+              stdout: (text: string) => setOutput(prev => prev + text),
+              stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
+            });
+            await pyodideInstance.loadPackage(['micropip']);
+            setPyodide(pyodideInstance);
+            setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+          }
         } catch (error) {
           setOutput(`❌ Failed to load Pyodide: ${error}\n`);
         } finally {
@@ -68,6 +87,7 @@ print("Hello World!")
       };
       loadPyodideInstance();
     }
+    
 
     // Initialize Skulpt
     if (selectedLanguage === 'python' && executionEngine === 'skulpt') {
@@ -155,6 +175,17 @@ print("Hello World!")
     );
     setOutput('');
   };
+
+  useEffect(()=>{
+    selectedLanguage === 'python' 
+    ? setCode(`# Start coding here\nprint("Hello World!")`)
+    : selectedLanguage === 'javascript'
+    ? setCode(`// Start coding here\nconsole.log("Hello World!");`)
+    : selectedLanguage === 'html'
+    ? setCode(`<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`)
+    : setCode(`/* Start coding here */\nbody {\n  background-color: lightblue;\n}`)
+
+  },[selectedLanguage])
 
   const runCode = async () => {
     setOutput(''); // Clear previous output
@@ -255,12 +286,33 @@ print("Hello World!")
     setOutput('Rendered HTML/CSS in preview pane');
   };
 
-  const formatError = (error: any) => {
-    if (typeof error === 'string') return error;
-    if (error.message) return error.message;
-    if (error.toString) return error.toString();
-    return 'Unknown error occurred';
-  };
+  function formatError(error:any) {
+    // Check if it's a Python traceback
+    if (error.toString().includes('Traceback')) {
+        // Clean up the error message
+        let errorMsg = error.toString();
+        
+        // Remove Pyodide-specific parts
+        errorMsg = errorMsg.replace(/Error: \n/, '');
+        errorMsg = errorMsg.replace(/at executePython.*/, '');
+        
+        // Highlight the error type
+        const lines = errorMsg.split('\n');
+        if (lines.length > 2) {
+            const lastLine = lines[lines.length-1];
+            errorMsg = errorMsg.replace(lastLine, `\n💥 ${lastLine.trim()}`);
+        }
+        
+        return errorMsg;
+    }
+    return `Error: ${error}`;
+}
+  // const formatError = (error: any) => {
+  //   if (typeof error === 'string') return error;
+  //   if (error.message) return error.message;
+  //   if (error.toString) return error.toString();
+  //   return 'Unknown error occurred';
+  // };
 
   return (
     <div className={`rounded-lg overflow-hidden border transition-colors duration-300 ${
@@ -277,7 +329,10 @@ print("Hello World!")
             {languages.map((lang) => (
               <button
                 key={lang.id}
-                onClick={() => setSelectedLanguage(lang.id)}
+                onClick={() =>{ 
+                  setSelectedLanguage(lang.id)
+                  setOutput('')
+                }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium
                   transition-all duration-200 flex items-center

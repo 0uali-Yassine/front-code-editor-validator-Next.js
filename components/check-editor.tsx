@@ -9,6 +9,22 @@ import { ChevronUp, ChevronDown, Play, RotateCcw, Code, Eye, Loader, Maximize2, 
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { javascript } from '@codemirror/lang-javascript';
+import { FaPython } from "react-icons/fa";
+import { FaJsSquare } from "react-icons/fa";
+import { FaHtml5 } from "react-icons/fa6";
+import { FaCss3Alt } from "react-icons/fa";
+
+// @ts-ignore - Skulpt types aren't great
+import Sk from 'skulpt';
+
+
+declare global {
+  interface Window {
+    loadPyodide: any;
+    Sk: typeof Sk;
+  }
+}
+
 
 interface CheckEditorProps {
   data: {
@@ -40,16 +56,22 @@ const submitCodeFetcher = async (url: string, { arg }: { arg: any }) => {
 };
 
 const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) => {
-  const [code, setCode] = useState<string>(`# start code here & hit submit code`);
+  const [code, setCode] = useState(`# Start coding here
+    print("Hello World!")
+    `);
   const [output, setOutput] = useState('');
   const [activeTab, setActiveTab] = useState('Theme');
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('python');
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const [leftWidth, setLeftWidth] = useState(50); // percentage
+  const [leftWidth, setLeftWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
+  const [executionEngine, setExecutionEngine] = useState<'pyodide' | 'skulpt'>('pyodide');
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [pyodide, setPyodide] = useState<any>(null);
+  const [isPyodideLoading, setIsPyodideLoading] = useState(false);
   
   const { trigger, isMutating, error } = useSWRMutation(
     '/api/student/check-code',
@@ -57,11 +79,75 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
   );
 
   const languages = [
-    { id: 'python', name: 'Python', icon: '🐍' },
-    { id: 'javascript', name: 'JavaScript', icon: '📜' },
-    { id: 'html', name: 'HTML', icon: '🌐' },
-    { id: 'css', name: 'CSS', icon: '🎨' },
+    { id: 'python', name: 'Python', icon: <FaPython/> },
+    { id: 'javascript', name: 'JavaScript', icon: <FaJsSquare/> },
+    { id: 'html', name: 'HTML', icon: <FaHtml5/> },
+    { id: 'css', name: 'CSS', icon: <FaCss3Alt/> },
   ];
+
+   // Initialize Pyodide
+   useEffect(() => {
+    if (selectedLanguage === 'python' && !pyodide && executionEngine === 'pyodide') {
+      const loadPyodideInstance = async () => {
+        setIsPyodideLoading(true);
+        try {
+          if (!window.loadPyodide) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js';
+            script.onload = async () => {
+              const pyodideInstance = await window.loadPyodide({
+                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+                stdout: (text: string) => setOutput(prev => prev + text),
+                stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
+              });
+              await pyodideInstance.loadPackage(['micropip']);
+              setPyodide(pyodideInstance);
+              setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+            };
+            document.body.appendChild(script);
+          } else {
+            const pyodideInstance = await window.loadPyodide({
+              indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+              stdout: (text: string) => setOutput(prev => prev + text),
+              stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
+            });
+            await pyodideInstance.loadPackage(['micropip']);
+            setPyodide(pyodideInstance);
+            setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+          }
+        } catch (error) {
+          setOutput(`❌ Failed to load Pyodide: ${error}\n`);
+        } finally {
+          setIsPyodideLoading(false);
+        }
+      };
+      loadPyodideInstance();
+    }
+    
+
+    // Initialize Skulpt
+    if (selectedLanguage === 'python' && executionEngine === 'skulpt') {
+      window.Sk = Sk;
+      configureSkulpt();
+    }
+  }, [selectedLanguage, executionEngine]);
+
+
+   // Configure Skulpt for Python execution
+   const configureSkulpt = () => {
+    Sk.configure({
+      output: (text: string) => {
+        setOutput(prev => prev + text);
+      },
+      read: (x: string) => {
+        if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined) {
+          throw `File not found: '${x}'`;
+        }
+        return Sk.builtinFiles["files"][x];
+      },
+      __future__: Sk.python3,
+    });
+  };
 
   const getLanguageExtension = () => {
     switch (selectedLanguage) {
@@ -132,7 +218,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
   }, [isDragging]);
 
   const submitCode = async () => {
-    setOutput(`Executing Python code...\n\n> ${code.split('\n').join('\n> ')}\n\n`);
+    setOutput(`Submitting code...\n\n> ${code.split('\n').join('\n> ')}\n\n`);
     try {
       const result = await trigger({
         code,
@@ -148,14 +234,149 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
     }
   };
 
+  useEffect(()=>{
+    selectedLanguage === 'python' 
+    ? setCode(`# Start coding here\nprint("Hello World!")`)
+    : selectedLanguage === 'javascript'
+    ? setCode(`// Start coding here\nconsole.log("Hello World!");`)
+    : selectedLanguage === 'html'
+    ? setCode(`<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`)
+    : setCode(`/* Start coding here */\nbody {\n  background-color: lightblue;\n}`)
+
+  },[selectedLanguage]);
+
   // Function to run the code and update the output
   const runCode = async () => {
-    // This is a mock implementation - in a real app you'd send the code to a backend
-    setOutput(`Executing Python code...\n\n> ${code.split('\n').join('\n> ')}\n\n`);
+    setOutput(''); // Clear previous output
+    
+    try {
+      switch (selectedLanguage) {
+        case 'python':
+          await runPythonCode();
+          break;
+        case 'javascript':
+          runJavaScriptCode();
+          break;
+        case 'html':
+        case 'css':
+          renderHtmlCss();
+          break;
+        default:
+          setOutput('Unsupported language');
+      }
+    } catch (error) {
+      setOutput(formatError(error));
+    }
   };
 
+  const runPythonCode = async () => {
+    setOutput('Running Python code...\n');
+    
+    if (executionEngine === 'pyodide') {
+      if (!pyodide) {
+        setOutput('Pyodide is still loading...');
+        return;
+      }
+      try {
+        await pyodide.runPythonAsync(code);
+      } catch (error) {
+        setOutput(formatError(error));
+      }
+    } else {
+      // Skulpt execution
+      try {
+        Sk.importMainWithBody("<stdin>", false, code, true);
+      } catch (error) {
+        setOutput(formatError(error));
+      }
+    }
+  };
+
+  const runJavaScriptCode = () => {
+    setOutput('Running JavaScript code...\n');
+    try {
+      // Capture console.log output
+      const originalConsoleLog = console.log;
+      console.log = (...args) => {
+        setOutput(prev => prev + args.join(' ') + '\n');
+        originalConsoleLog(...args);
+      };
+      
+      // Execute the code
+      new Function(code)();
+      
+      // Restore original console.log
+      console.log = originalConsoleLog;
+    } catch (error) {
+      setOutput(formatError(error));
+    }
+  };
+
+
+  const renderHtmlCss = () => {
+    if (!iframeRef.current) return;
+    
+    const iframe = iframeRef.current;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    
+    if (!doc) return;
+    
+    if (selectedLanguage === 'html') {
+      doc.open();
+      doc.write(code);
+      doc.close();
+    } else {
+      // For CSS, create a basic HTML structure with the CSS
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>${code}</style>
+        </head>
+        <body>
+          <h1>CSS Preview</h1>
+          <p>This is a preview of your CSS styles</p>
+        </body>
+        </html>
+      `);
+      doc.close();
+    }
+    
+    setOutput('Rendered HTML/CSS in preview pane');
+  };
+
+  function formatError(error:any) {
+    // Check if it's a Python traceback
+    if (error.toString().includes('Traceback')) {
+        // Clean up the error message
+        let errorMsg = error.toString();
+        
+        // Remove Pyodide-specific parts
+        errorMsg = errorMsg.replace(/Error: \n/, '');
+        errorMsg = errorMsg.replace(/at executePython.*/, '');
+        
+        // Highlight the error type
+        const lines = errorMsg.split('\n');
+        if (lines.length > 2) {
+            const lastLine = lines[lines.length-1];
+            errorMsg = errorMsg.replace(lastLine, `\n💥 ${lastLine.trim()}`);
+        }
+        
+        return errorMsg;
+    }
+    return `Error: ${error}`;
+}
+
   const resetCode = () => {
-    setCode(`# start code here & hit submit code`);
+    setCode(selectedLanguage === 'python' 
+      ? `# Start coding here\nprint("Hello World!")`
+      : selectedLanguage === 'javascript'
+      ? `// Start coding here\nconsole.log("Hello World!");`
+      : selectedLanguage === 'html'
+      ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
+      : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
+    );
     setOutput('');
   };
 
@@ -176,7 +397,10 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
             {languages.map((lang) => (
               <button
                 key={lang.id}
-                onClick={() => setSelectedLanguage(lang.id)}
+                onClick={() =>{ 
+                  setSelectedLanguage(lang.id)
+                  setOutput('')
+                }}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium
                   transition-all duration-200 flex items-center
@@ -195,6 +419,32 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
               </button>
             ))}
           </div>
+          {selectedLanguage === 'python' && (
+            <div className={`flex items-center space-x-1 rounded-lg p-1 ml-2 transition-colors duration-300 ${
+              isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100'
+            }`}>
+              <button
+                onClick={() => setExecutionEngine('pyodide')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                  executionEngine === 'pyodide'
+                    ? isDarkMode ? 'bg-slate-600 text-white' : 'bg-gray-200 text-gray-900'
+                    : isDarkMode ? 'text-gray-400 hover:bg-slate-600/50' : 'text-gray-600 hover:bg-gray-200/50'
+                }`}
+              >
+                Pyodide
+              </button>
+              <button
+                onClick={() => setExecutionEngine('skulpt')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                  executionEngine === 'skulpt'
+                    ? isDarkMode ? 'bg-slate-600 text-white' : 'bg-gray-200 text-gray-900'
+                    : isDarkMode ? 'text-gray-400 hover:bg-slate-600/50' : 'text-gray-600 hover:bg-gray-200/50'
+                }`}
+              >
+                Skulpt
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex items-center space-x-2">
           <button
@@ -303,7 +553,8 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
           />
 
           {/* Right side: Preview */}
-          <div 
+        {/* Right side: Output/Preview */}
+        <div 
             className={`${
               isFullScreen 
                 ? 'h-full'
@@ -312,23 +563,37 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
               isDarkMode 
                 ? 'bg-slate-800 text-gray-200' 
                 : 'bg-gray-50 text-gray-900'
-            } font-mono text-sm overflow-auto p-4`}
+            } font-mono text-sm overflow-hidden flex flex-col`}
             style={{ width: `${100 - leftWidth}%` }}
           >
-            {output ? (
-              <pre className={isDarkMode ? 'text-gray-200' : 'text-gray-900'}>{output}</pre>
+            {(selectedLanguage === 'html' || selectedLanguage === 'css') ? (
+              <iframe
+                ref={iframeRef}
+                title="output-preview"
+                className="flex-grow w-full border-0"
+                sandbox="allow-scripts allow-same-origin"
+              />
             ) : (
-              <div className={`flex items-center justify-center h-full ${
-                isDarkMode ? 'text-gray-500' : 'text-gray-400'
-              }`}>
-                <div className="text-center">
-                  <p>Run your code to see the output here</p>
-                </div>
+              <div className="p-4 overflow-auto flex-grow">
+                {output ? (
+                  <pre className={`whitespace-pre-wrap ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                    {output}
+                  </pre>
+                ) : (
+                  <div className={`flex items-center justify-center h-full ${
+                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`}>
+                    <div className="text-center">
+                      <p>Run your code to see the output here</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
 
       {/* Footer with Run button */}
       <div className={`border-t p-3 flex justify-between items-center transition-colors duration-300 ${
