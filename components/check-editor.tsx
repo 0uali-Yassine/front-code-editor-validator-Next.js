@@ -105,7 +105,13 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
             script.onload = async () => {
               const pyodideInstance = await window.loadPyodide({
                 indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
-                stdout: (text: string) => setOutput(prev => prev + text),
+                stdout: (text: string) => {
+                  text.split('\n').forEach((line, idx, arr) => {
+                    if (line !== '' || idx < arr.length - 1) {
+                      setOutput(prev => prev + line + '\n');
+                    }
+                  });
+                },
                 stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
               });
               await pyodideInstance.loadPackage(['micropip']);
@@ -116,7 +122,13 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
           } else {
             const pyodideInstance = await window.loadPyodide({
               indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
-              stdout: (text: string) => setOutput(prev => prev + text),
+              stdout: (text: string) => {
+                text.split('\n').forEach((line, idx, arr) => {
+                  if (line !== '' || idx < arr.length - 1) {
+                    setOutput(prev => prev + line + '\n');
+                  }
+                });
+              },
               stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
             });
             await pyodideInstance.loadPackage(['micropip']);
