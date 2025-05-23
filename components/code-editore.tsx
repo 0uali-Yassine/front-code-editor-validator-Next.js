@@ -267,36 +267,52 @@ const CodeEditor = () => {
 
   const renderHtmlCss = () => {
     if (!iframeRef.current) return;
-    
     const iframe = iframeRef.current;
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    
     if (!doc) return;
-    
-    if (selectedLanguage === 'html') {
-      doc.open();
-      doc.write(codes['html']);
-      doc.close();
+
+    // Always combine HTML, CSS, and JS
+    let htmlCode = codes['html'] || '';
+    const cssCode = codes['css'] || '';
+    const jsCode = codes['javascript'] || '';
+
+    // Inject CSS into <head>
+    if (htmlCode.includes('<head>')) {
+      htmlCode = htmlCode.replace(
+        '<head>',
+        `<head><style>${cssCode}</style>`
+      );
     } else {
-      // For CSS, create a basic HTML structure with the CSS
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>${codes['css']}</style>
-        </head>
-        <body>
-          <h1>CSS Preview</h1>
-          <p>This is a preview of your CSS styles</p>
-          s
-        </body>
-        </html>
-      `);
-      doc.close();
+      htmlCode = htmlCode.replace(
+        '<html>',
+        `<html><head><style>${cssCode}</style></head>`
+      );
     }
-    
-    setOutput('Rendered HTML/CSS in preview pane');
+
+    const wrappedJsCode = `
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        ${jsCode}
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    `;
+    // Inject JS before </body>
+    if (htmlCode.includes('</body>')) {
+      htmlCode = htmlCode.replace(
+        '</body>',
+        `<script>${wrappedJsCode}</script></body>`
+      );
+    } else {
+      htmlCode += `<script>${wrappedJsCode}</script>`;
+    }
+
+    doc.open();
+    doc.write(htmlCode);
+    doc.close();
+
+    setOutput('Rendered HTML/CSS/JS in preview pane');
   };
 
   function formatError(error:any) {
