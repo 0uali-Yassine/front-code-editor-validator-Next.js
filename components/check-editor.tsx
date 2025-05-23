@@ -25,6 +25,9 @@ declare global {
   }
 }
 
+// Add Language type
+type Language = 'python' | 'javascript' | 'html' | 'css';
+
 
 interface CheckEditorProps {
   data: {
@@ -55,15 +58,20 @@ const submitCodeFetcher = async (url: string, { arg }: { arg: any }) => {
   return await response.json();
 };
 
+
+
 const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) => {
-  const [code, setCode] = useState(`# Start coding here
-    print("Hello World!")
-    `);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>('python');
+  const [codes, setCodes] = useState<Record<Language, string>>({
+    python: `# Start coding here\nprint("Hello World!")`,
+    javascript: `// Start coding here\nconsole.log("Hello World!");`,
+    html: `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`,
+    css: `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`,
+  });
   const [output, setOutput] = useState('');
   const [activeTab, setActiveTab] = useState('Theme');
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState('python');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [leftWidth, setLeftWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [executionEngine, setExecutionEngine] = useState<'pyodide' | 'skulpt'>('pyodide');
@@ -218,10 +226,10 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
   }, [isDragging]);
 
   const submitCode = async () => {
-    setOutput(`Submitting code...\n\n> ${code.split('\n').join('\n> ')}\n\n`);
+    setOutput(`Submitting code...\n\n> ${codes[selectedLanguage].split('\n').join('\n> ')}\n\n`);
     try {
       const result = await trigger({
-        code,
+        code: codes[selectedLanguage],
         userId: data.userId,
         pageId: data.page._id,
         sectionId: Sections[0]._id,
@@ -233,17 +241,6 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
       console.error('Error submitting code:', err instanceof Error ? err.message : 'Unknown error');
     }
   };
-
-  useEffect(()=>{
-    selectedLanguage === 'python' 
-    ? setCode(`# Start coding here\nprint("Hello World!")`)
-    : selectedLanguage === 'javascript'
-    ? setCode(`// Start coding here\nconsole.log("Hello World!");`)
-    : selectedLanguage === 'html'
-    ? setCode(`<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`)
-    : setCode(`/* Start coding here */\nbody {\n  background-color: lightblue;\n}`)
-
-  },[selectedLanguage]);
 
   // Function to run the code and update the output
   const runCode = async () => {
@@ -271,21 +268,23 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
 
   const runPythonCode = async () => {
     setOutput('Running Python code...\n');
-    
     if (executionEngine === 'pyodide') {
       if (!pyodide) {
         setOutput('Pyodide is still loading...');
         return;
       }
       try {
-        await pyodide.runPythonAsync(code);
+        //why? The environment is not being reset, so old state persists.
+        // Use a fresh namespace for each run
+        const pyNamespace = pyodide.globals.get("dict")();
+        await pyodide.runPythonAsync(codes['python'], { globals: pyNamespace });
       } catch (error) {
         setOutput(formatError(error));
       }
     } else {
       // Skulpt execution
       try {
-        Sk.importMainWithBody("<stdin>", false, code, true);
+        Sk.importMainWithBody("<stdin>", false, codes['python'], true);
       } catch (error) {
         setOutput(formatError(error));
       }
@@ -301,10 +300,8 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
         setOutput(prev => prev + args.join(' ') + '\n');
         originalConsoleLog(...args);
       };
-      
       // Execute the code
-      new Function(code)();
-      
+      new Function(codes['javascript'])();
       // Restore original console.log
       console.log = originalConsoleLog;
     } catch (error) {
@@ -323,7 +320,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
     
     if (selectedLanguage === 'html') {
       doc.open();
-      doc.write(code);
+      doc.write(codes['html']);
       doc.close();
     } else {
       // For CSS, create a basic HTML structure with the CSS
@@ -332,7 +329,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
         <!DOCTYPE html>
         <html>
         <head>
-          <style>${code}</style>
+          <style>${codes['css']}</style>
         </head>
         <body>
           <h1>CSS Preview</h1>
@@ -369,14 +366,17 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
 }
 
   const resetCode = () => {
-    setCode(selectedLanguage === 'python' 
-      ? `# Start coding here\nprint("Hello World!")`
-      : selectedLanguage === 'javascript'
-      ? `// Start coding here\nconsole.log("Hello World!");`
-      : selectedLanguage === 'html'
-      ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
-      : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
-    );
+    setCodes(prev => ({
+      ...prev,
+      [selectedLanguage]:
+        selectedLanguage === 'python' 
+          ? `# Start coding here\nprint("Hello World!")`
+          : selectedLanguage === 'javascript'
+          ? `// Start coding here\nconsole.log("Hello World!");`
+          : selectedLanguage === 'html'
+          ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
+          : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
+    }));
     setOutput('');
   };
 
@@ -398,7 +398,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
               <button
                 key={lang.id}
                 onClick={() =>{ 
-                  setSelectedLanguage(lang.id)
+                  setSelectedLanguage(lang.id as Language)
                   setOutput('')
                 }}
                 className={`
@@ -530,11 +530,11 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
             style={{ width: `${leftWidth}%` }}
           >
             <CodeMirror
-              value={code}
+              value={codes[selectedLanguage]}
               height={isFullScreen ? "calc(100vh - 110px)" : "80vh"}
               theme={isDarkMode ? dracula : githubLight}
               extensions={getLanguageExtension()}
-              onChange={(value) => setCode(value)}
+              onChange={(value) => setCodes(prev => ({ ...prev, [selectedLanguage]: value }))}
               className="text-base overflow-auto"
             />
           </div>
@@ -600,7 +600,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
         isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
       } ${isFullScreen ? 'fixed bottom-0 left-0 right-0 z-50' : ''}`}>
         <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          {code.split('\n').length} lines | Python
+          {codes[selectedLanguage].split('\n').length} lines | {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
         </div>
         <div className="flex gap-3">
           <button  

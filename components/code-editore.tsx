@@ -23,16 +23,21 @@ declare global {
   }
 }
 
+// Add Language type
+type Language = 'python' | 'javascript' | 'html' | 'css';
 
 const CodeEditor = () => {
-  const [code, setCode] = useState(`# Start coding here
-print("Hello World!")
-`);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language>('python');
+  const [codes, setCodes] = useState<Record<Language, string>>({
+    python: `# Start coding here\nprint("Hello World!")`,
+    javascript: `// Start coding here\nconsole.log("Hello World!");`,
+    html: `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`,
+    css: `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`,
+  });
   const [output, setOutput] = useState('');
   const [activeTab, setActiveTab] = useState('Theme');
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(true);
-  const [selectedLanguage, setSelectedLanguage] = useState('python');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [leftWidth, setLeftWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [executionEngine, setExecutionEngine] = useState<'pyodide' | 'skulpt'>('pyodide');
@@ -165,27 +170,19 @@ print("Hello World!")
   const toggleFullScreen = () => setIsFullScreen(!isFullScreen);
 
   const resetCode = () => {
-    setCode(selectedLanguage === 'python' 
-      ? `# Start coding here\nprint("Hello World!")`
-      : selectedLanguage === 'javascript'
-      ? `// Start coding here\nconsole.log("Hello World!");`
-      : selectedLanguage === 'html'
-      ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
-      : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
-    );
+    setCodes(prev => ({
+      ...prev,
+      [selectedLanguage]:
+        selectedLanguage === 'python' 
+          ? `# Start coding here\nprint("Hello World!")`
+          : selectedLanguage === 'javascript'
+          ? `// Start coding here\nconsole.log("Hello World!");`
+          : selectedLanguage === 'html'
+          ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
+          : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
+    }));
     setOutput('');
   };
-
-  useEffect(()=>{
-    selectedLanguage === 'python' 
-    ? setCode(`# Start coding here\nprint("Hello World!")`)
-    : selectedLanguage === 'javascript'
-    ? setCode(`// Start coding here\nconsole.log("Hello World!");`)
-    : selectedLanguage === 'html'
-    ? setCode(`<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`)
-    : setCode(`/* Start coding here */\nbody {\n  background-color: lightblue;\n}`)
-
-  },[selectedLanguage])
 
   const runCode = async () => {
     setOutput(''); // Clear previous output
@@ -219,14 +216,17 @@ print("Hello World!")
         return;
       }
       try {
-        await pyodide.runPythonAsync(code);
+        //why? The environment is not being reset, so old state persists.
+        // Create a fresh namespace for each run
+      const pyNamespace = pyodide.globals.get("dict")();
+      await pyodide.runPythonAsync(codes['python'], { globals: pyNamespace });
       } catch (error) {
         setOutput(formatError(error));
       }
     } else {
       // Skulpt execution
       try {
-        Sk.importMainWithBody("<stdin>", false, code, true);
+        Sk.importMainWithBody("<stdin>", false, codes['python'], true);
       } catch (error) {
         setOutput(formatError(error));
       }
@@ -244,7 +244,7 @@ print("Hello World!")
       };
       
       // Execute the code
-      new Function(code)();
+      new Function(codes['javascript'])();
       
       // Restore original console.log
       console.log = originalConsoleLog;
@@ -263,7 +263,7 @@ print("Hello World!")
     
     if (selectedLanguage === 'html') {
       doc.open();
-      doc.write(code);
+      doc.write(codes['html']);
       doc.close();
     } else {
       // For CSS, create a basic HTML structure with the CSS
@@ -272,11 +272,12 @@ print("Hello World!")
         <!DOCTYPE html>
         <html>
         <head>
-          <style>${code}</style>
+          <style>${codes['css']}</style>
         </head>
         <body>
           <h1>CSS Preview</h1>
           <p>This is a preview of your CSS styles</p>
+          s
         </body>
         </html>
       `);
@@ -330,7 +331,7 @@ print("Hello World!")
               <button
                 key={lang.id}
                 onClick={() =>{ 
-                  setSelectedLanguage(lang.id)
+                  setSelectedLanguage(lang.id as Language)
                   setOutput('')
                 }}
                 className={`
@@ -464,11 +465,11 @@ print("Hello World!")
             style={{ width: `${leftWidth}%` }}
           >
             <CodeMirror
-              value={code}
+              value={codes[selectedLanguage]}
               height={isFullScreen ? "calc(100vh - 110px)" : "80vh"}
               theme={isDarkMode ? dracula : githubLight}
               extensions={getLanguageExtension()}
-              onChange={(value) => setCode(value)}
+              onChange={(value) => setCodes(prev => ({ ...prev, [selectedLanguage]: value }))}
               className="text-base overflow-auto"
             />
           </div>
@@ -503,13 +504,13 @@ print("Hello World!")
               <iframe
                 ref={iframeRef}
                 title="output-preview"
-                className="flex-grow w-full border-0"
+                className="flex-grow w-full h-full border-0"
                 sandbox="allow-scripts allow-same-origin"
               />
             ) : (
-              <div className="p-4 overflow-auto flex-grow">
+              <div className="p-4 flex-grow  overflow-y-auto  h-full">
                 {output ? (
-                  <pre className={`whitespace-pre-wrap ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                  <pre className={`whitespace-pre-wrap h-[100%] ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                     {output}
                   </pre>
                 ) : (
@@ -532,7 +533,7 @@ print("Hello World!")
         isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
       } ${isFullScreen ? 'fixed bottom-0 left-0 right-0 z-50' : ''}`}>
         <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          {code.split('\n').length} lines | {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
+          {codes[selectedLanguage].split('\n').length} lines | {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
           {selectedLanguage === 'python' && ` (${executionEngine})`}
         </div>
         <button  
