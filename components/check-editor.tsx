@@ -409,10 +409,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
             {languages.map((lang) => (
               <button
                 key={lang.id}
-                onClick={() =>{ 
-                  setSelectedLanguage(lang.id as Language)
-                  setOutput('')
-                }}
+                onClick={() => setSelectedLanguage(lang.id as Language)}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium
                   transition-all duration-200 flex items-center
@@ -565,8 +562,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
           />
 
           {/* Right side: Preview */}
-        {/* Right side: Output/Preview */}
-        <div 
+          <div 
             className={`${
               isFullScreen 
                 ? 'h-full'
@@ -578,7 +574,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
             } font-mono text-sm overflow-hidden flex flex-col`}
             style={{ width: `${100 - leftWidth}%` }}
           >
-            {(selectedLanguage === 'html' || selectedLanguage === 'css') ? (
+            {(['html', 'css', 'javascript'].includes(selectedLanguage)) ? (
               <iframe
                 ref={iframeRef}
                 title="output-preview"

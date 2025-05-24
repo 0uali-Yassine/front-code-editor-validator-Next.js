@@ -48,10 +48,10 @@ const CodeEditor = () => {
   const [isPyodideLoading, setIsPyodideLoading] = useState(false);
 
   const languages = [
-    { id: 'python', name: 'Python', icon: <FaPython/> },
-    { id: 'javascript', name: 'JavaScript', icon: <FaJsSquare/> },
-    { id: 'html', name: 'HTML', icon: <FaHtml5/> },
-    { id: 'css', name: 'CSS', icon: <FaCss3Alt/> },
+    { id: 'python', name: 'Python', icon: <FaPython /> },
+    { id: 'javascript', name: 'JavaScript', icon: <FaJsSquare /> },
+    { id: 'html', name: 'HTML', icon: <FaHtml5 /> },
+    { id: 'css', name: 'CSS', icon: <FaCss3Alt /> },
   ];
 
   // Initialize Pyodide
@@ -104,7 +104,7 @@ const CodeEditor = () => {
       };
       loadPyodideInstance();
     }
-    
+
 
     // Initialize Skulpt
     if (selectedLanguage === 'python' && executionEngine === 'skulpt') {
@@ -185,28 +185,26 @@ const CodeEditor = () => {
     setCodes(prev => ({
       ...prev,
       [selectedLanguage]:
-        selectedLanguage === 'python' 
+        selectedLanguage === 'python'
           ? `# Start coding here\nprint("Hello World!")`
           : selectedLanguage === 'javascript'
-          ? `// Start coding here\nconsole.log("Hello World!");`
-          : selectedLanguage === 'html'
-          ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
-          : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
+            ? `// Start coding here\nconsole.log("Hello World!");`
+            : selectedLanguage === 'html'
+              ? `<!DOCTYPE html>\n<html>\n<head>\n  <title>Page</title>\n</head>\n<body>\n  <h1>Hello World!</h1>\n</body>\n</html>`
+              : `/* Start coding here */\nbody {\n  background-color: lightblue;\n}`
     }));
     setOutput('');
   };
 
   const runCode = async () => {
     setOutput(''); // Clear previous output
-    
+
     try {
       switch (selectedLanguage) {
         case 'python':
           await runPythonCode();
           break;
         case 'javascript':
-          runJavaScriptCode();
-          break;
         case 'html':
         case 'css':
           renderHtmlCss();
@@ -221,7 +219,7 @@ const CodeEditor = () => {
 
   const runPythonCode = async () => {
     setOutput('Running Python code...\n');
-    
+
     if (executionEngine === 'pyodide') {
       if (!pyodide) {
         setOutput('Pyodide is still loading...');
@@ -230,8 +228,8 @@ const CodeEditor = () => {
       try {
         //why? The environment is not being reset, so old state persists.
         // Create a fresh namespace for each run
-      const pyNamespace = pyodide.globals.get("dict")();
-      await pyodide.runPythonAsync(codes['python'], { globals: pyNamespace });
+        const pyNamespace = pyodide.globals.get("dict")();
+        await pyodide.runPythonAsync(codes['python'], { globals: pyNamespace });
       } catch (error) {
         setOutput(formatError(error));
       }
@@ -254,10 +252,10 @@ const CodeEditor = () => {
         setOutput(prev => prev + args.join(' ') + '\n');
         originalConsoleLog(...args);
       };
-      
+
       // Execute the code
       new Function(codes['javascript'])();
-      
+
       // Restore original console.log
       console.log = originalConsoleLog;
     } catch (error) {
@@ -265,77 +263,94 @@ const CodeEditor = () => {
     }
   };
 
+  // const renderHtmlCss = () => {
+  //   if (!iframeRef.current) return;
+  //   const iframe = iframeRef.current;
+  //   const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  //   if (!doc) return;
+
+  //   const combinedCode = `
+  //     <!DOCTYPE html>
+  //     <html>
+  //       <head>
+  //         <style>
+  //           ${codes['css'] || ''}
+  //         </style>
+  //       </head>
+  //       <body>
+  //         ${codes['html'] || ''}
+  //         <script>
+  //           ${codes['javascript'] || ''}
+  //         </script>
+  //       </body>
+  //     </html>
+  //   `;
+
+  //   doc.open();
+  //   doc.write(combinedCode);
+  //   doc.close();
+
+  //   setOutput('Rendered HTML/CSS/JS in preview pane');
+  // };
+
   const renderHtmlCss = () => {
     if (!iframeRef.current) return;
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) return;
 
-    // Always combine HTML, CSS, and JS
-    let htmlCode = codes['html'] || '';
-    const cssCode = codes['css'] || '';
-    const jsCode = codes['javascript'] || '';
+    // Completely reload the iframe to avoid redeclaration issues
+    iframe.src = 'about:blank';
 
-    // Inject CSS into <head>
-    if (htmlCode.includes('<head>')) {
-      htmlCode = htmlCode.replace(
-        '<head>',
-        `<head><style>${cssCode}</style>`
-      );
-    } else {
-      htmlCode = htmlCode.replace(
-        '<html>',
-        `<html><head><style>${cssCode}</style></head>`
-      );
-    }
+    // Wait for iframe to reload
+    iframe.onload = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
 
-    const wrappedJsCode = `
-    document.addEventListener('DOMContentLoaded', function() {
-      try {
-        ${jsCode}
-      } catch (e) {
-        console.error(e);
-      }
-    });
-    `;
-    // Inject JS before </body>
-    if (htmlCode.includes('</body>')) {
-      htmlCode = htmlCode.replace(
-        '</body>',
-        `<script>${wrappedJsCode}</script></body>`
-      );
-    } else {
-      htmlCode += `<script>${wrappedJsCode}</script>`;
-    }
+      const combinedCode = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              ${codes['css'] || ''}
+            </style>
+          </head>
+          <body>
+            ${codes['html'] || ''}
+            <script>
+              ${codes['javascript'] || ''}
+            </script>
+          </body>
+        </html>
+      `;
 
-    doc.open();
-    doc.write(htmlCode);
-    doc.close();
+      doc.open();
+      doc.write(combinedCode);
+      doc.close();
 
-    setOutput('Rendered HTML/CSS/JS in preview pane');
+      setOutput('Rendered HTML/CSS/JS in preview pane');
+    };
   };
 
-  function formatError(error:any) {
+  function formatError(error: any) {
     // Check if it's a Python traceback
     if (error.toString().includes('Traceback')) {
-        // Clean up the error message
-        let errorMsg = error.toString();
-        
-        // Remove Pyodide-specific parts
-        errorMsg = errorMsg.replace(/Error: \n/, '');
-        errorMsg = errorMsg.replace(/at executePython.*/, '');
-        
-        // Highlight the error type
-        const lines = errorMsg.split('\n');
-        if (lines.length > 2) {
-            const lastLine = lines[lines.length-1];
-            errorMsg = errorMsg.replace(lastLine, `\n💥 ${lastLine.trim()}`);
-        }
-        
-        return errorMsg;
+      // Clean up the error message
+      let errorMsg = error.toString();
+
+      // Remove Pyodide-specific parts
+      errorMsg = errorMsg.replace(/Error: \n/, '');
+      errorMsg = errorMsg.replace(/at executePython.*/, '');
+
+      // Highlight the error type
+      const lines = errorMsg.split('\n');
+      if (lines.length > 2) {
+        const lastLine = lines[lines.length - 1];
+        errorMsg = errorMsg.replace(lastLine, `\n💥 ${lastLine.trim()}`);
+      }
+
+      return errorMsg;
     }
     return `Error: ${error}`;
-}
+  }
   // const formatError = (error: any) => {
   //   if (typeof error === 'string') return error;
   //   if (error.message) return error.message;
@@ -344,21 +359,18 @@ const CodeEditor = () => {
   // };
 
   return (
-    <div className={`rounded-lg overflow-hidden border transition-colors duration-300 ${
-      isDarkMode ? 'border-gray-700 shadow-lg bg-slate-900' : 'border-gray-200 shadow-lg bg-white'
-    }`}>
-      {/* Editor Header */}
-      <div className={`border-b p-3 flex items-center justify-between transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+    <div className={`rounded-lg overflow-hidden border transition-colors duration-300 ${isDarkMode ? 'border-gray-700 shadow-lg bg-slate-900' : 'border-gray-200 shadow-lg bg-white'
       }`}>
+      {/* Editor Header */}
+      <div className={`border-b p-3 flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+        }`}>
         <div className="flex items-center space-x-2">
-          <div className={`flex items-center space-x-1 rounded-lg p-1 transition-colors duration-300 ${
-            isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100'
-          }`}>
+          <div className={`flex items-center space-x-1 rounded-lg p-1 transition-colors duration-300 ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100'
+            }`}>
             {languages.map((lang) => (
               <button
                 key={lang.id}
-                onClick={() =>{ 
+                onClick={() => {
                   setSelectedLanguage(lang.id as Language)
                   setOutput('')
                 }}
@@ -366,8 +378,8 @@ const CodeEditor = () => {
                   px-3 py-1.5 rounded-md text-sm font-medium
                   transition-all duration-200 flex items-center
                   ${selectedLanguage === lang.id
-                    ? isDarkMode 
-                      ? 'bg-slate-600 text-white' 
+                    ? isDarkMode
+                      ? 'bg-slate-600 text-white'
                       : 'bg-gray-200 text-gray-900'
                     : isDarkMode
                       ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-600/50'
@@ -380,65 +392,59 @@ const CodeEditor = () => {
               </button>
             ))}
           </div>
-          
+
           {selectedLanguage === 'python' && (
-            <div className={`flex items-center space-x-1 rounded-lg p-1 ml-2 transition-colors duration-300 ${
-              isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100'
-            }`}>
+            <div className={`flex items-center space-x-1 rounded-lg p-1 ml-2 transition-colors duration-300 ${isDarkMode ? 'bg-slate-700/50' : 'bg-gray-100'
+              }`}>
               <button
                 onClick={() => setExecutionEngine('pyodide')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                  executionEngine === 'pyodide'
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${executionEngine === 'pyodide'
                     ? isDarkMode ? 'bg-slate-600 text-white' : 'bg-gray-200 text-gray-900'
                     : isDarkMode ? 'text-gray-400 hover:bg-slate-600/50' : 'text-gray-600 hover:bg-gray-200/50'
-                }`}
+                  }`}
               >
                 Pyodide
               </button>
               <button
                 onClick={() => setExecutionEngine('skulpt')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                  executionEngine === 'skulpt'
+                className={`px-3 py-1.5 rounded-md text-sm font-medium ${executionEngine === 'skulpt'
                     ? isDarkMode ? 'bg-slate-600 text-white' : 'bg-gray-200 text-gray-900'
                     : isDarkMode ? 'text-gray-400 hover:bg-slate-600/50' : 'text-gray-600 hover:bg-gray-200/50'
-                }`}
+                  }`}
               >
                 Skulpt
               </button>
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-md transition-colors duration-200 ${
-              isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700' 
+            className={`p-2 rounded-md transition-colors duration-200 ${isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+              }`}
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <button 
+          <button
             onClick={resetCode}
-            className={`p-2 rounded-md transition-colors duration-200 ${
-              isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700' 
+            className={`p-2 rounded-md transition-colors duration-200 ${isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+              }`}
             title="Reset Code"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
-          <button 
+          <button
             onClick={toggleFullScreen}
-            className={`p-2 rounded-md transition-colors duration-200 ${
-              isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700' 
+            className={`p-2 rounded-md transition-colors duration-200 ${isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+              }`}
             title={isFullScreen ? "Exit Fullscreen" : "Fullscreen"}
           >
             {isFullScreen ? (
@@ -451,45 +457,40 @@ const CodeEditor = () => {
       </div>
 
       {/* Main Editor + Preview Area */}
-      <div 
+      <div
         ref={editorContainerRef}
-        className={`${
-          isFullScreen 
-            ? 'fixed inset-0 z-50 flex flex-col' 
+        className={`${isFullScreen
+            ? 'fixed inset-0 z-50 flex flex-col'
             : 'flex h-96'
-        } ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}
+          } ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}
       >
         {isFullScreen && (
-          <div className={`p-2 flex justify-between items-center transition-colors duration-300 ${
-            isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
-          }`}>
+          <div className={`p-2 flex justify-between items-center transition-colors duration-300 ${isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
+            }`}>
             <span className={`text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Esc</span>
-            <button 
-              onClick={toggleFullScreen} 
-              className={`transition-colors duration-200 ${
-                isDarkMode 
-                  ? 'text-gray-400 hover:text-gray-200' 
+            <button
+              onClick={toggleFullScreen}
+              className={`transition-colors duration-200 ${isDarkMode
+                  ? 'text-gray-400 hover:text-gray-200'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <Minimize2 className="h-4 w-4" />
             </button>
           </div>
         )}
-        
-        <div 
+
+        <div
           ref={containerRef}
           className={`${isFullScreen ? 'flex flex-grow w-full' : 'flex h-full w-full'} relative`}
         >
           {/* Left side: Code Editor */}
-          <div 
-            className={`${
-              isFullScreen 
+          <div
+            className={`${isFullScreen
                 ? 'h-full'
                 : (activeTab === 'code' ? 'block' : 'hidden md:block')
-            } border-r transition-colors duration-300 ${
-              isDarkMode ? 'border-gray-700' : 'border-gray-200'
-            } overflow-hidden`}
+              } border-r transition-colors duration-300 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+              } overflow-hidden`}
             style={{ width: `${leftWidth}%` }}
           >
             <CodeMirror
@@ -504,31 +505,28 @@ const CodeEditor = () => {
 
           {/* Resizer */}
           <div
-            className={`absolute top-0 bottom-0 w-1 cursor-col-resize transition-colors duration-200 ${
-              isDragging 
-                ? 'bg-indigo-600' 
-                : isDarkMode 
-                  ? 'bg-gray-700 hover:bg-indigo-500' 
+            className={`absolute top-0 bottom-0 w-1 cursor-col-resize transition-colors duration-200 ${isDragging
+                ? 'bg-indigo-600'
+                : isDarkMode
+                  ? 'bg-gray-700 hover:bg-indigo-500'
                   : 'bg-gray-200 hover:bg-indigo-500'
-            }`}
+              }`}
             style={{ left: `${leftWidth}%`, transform: 'translateX(-50%)' }}
             onMouseDown={handleMouseDown}
           />
 
           {/* Right side: Output/Preview */}
-          <div 
-            className={`${
-              isFullScreen 
+          <div
+            className={`${isFullScreen
                 ? 'h-full'
                 : (activeTab === 'preview' ? 'block' : 'hidden md:block')
-            } transition-colors duration-300 ${
-              isDarkMode 
-                ? 'bg-slate-800 text-gray-200' 
+              } transition-colors duration-300 ${isDarkMode
+                ? 'bg-slate-800 text-gray-200'
                 : 'bg-gray-50 text-gray-900'
-            } font-mono text-sm overflow-hidden flex flex-col`}
+              } font-mono text-sm overflow-hidden flex flex-col`}
             style={{ width: `${100 - leftWidth}%` }}
           >
-            {(selectedLanguage === 'html' || selectedLanguage === 'css') ? (
+            {(['html', 'css', 'javascript'].includes(selectedLanguage)) ? (
               <iframe
                 ref={iframeRef}
                 title="output-preview"
@@ -542,9 +540,8 @@ const CodeEditor = () => {
                     {output}
                   </pre>
                 ) : (
-                  <div className={`flex items-center justify-center h-full ${
-                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                  }`}>
+                  <div className={`flex items-center justify-center h-full ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                     <div className="text-center">
                       <p>Run your code to see the output here</p>
                     </div>
@@ -557,21 +554,20 @@ const CodeEditor = () => {
       </div>
 
       {/* Footer with Run button */}
-      <div className={`border-t p-3 flex justify-between items-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
-      } ${isFullScreen ? 'fixed bottom-0 left-0 right-0 z-50' : ''}`}>
+      <div className={`border-t p-3 flex justify-between items-center transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+        } ${isFullScreen ? 'fixed bottom-0 left-0 right-0 z-50' : ''}`}>
         <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           {codes[selectedLanguage].split('\n').length} lines | {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
           {selectedLanguage === 'python' && ` (${executionEngine})`}
         </div>
-        <button  
+        <button
           onClick={runCode}
           disabled={isPyodideLoading}
           className={`
             px-4 py-2 rounded-none font-medium tracking-wide uppercase text-xs
             flex items-center justify-center min-w-[120px]
             transition-all duration-200
-            ${isPyodideLoading 
+            ${isPyodideLoading
               ? isDarkMode
                 ? 'bg-gray-700 text-gray-400 cursor-wait'
                 : 'bg-gray-200 text-gray-500 cursor-wait'
@@ -596,27 +592,24 @@ const CodeEditor = () => {
 
       {/* Fullscreen Mode Controls */}
       {isFullScreen && (
-        <div className={`fixed top-0 right-0 p-2 flex items-center space-x-2 z-50 transition-colors duration-300 ${
-          isDarkMode ? 'bg-slate-800/90' : 'bg-gray-50/90'
-        }`}>
+        <div className={`fixed top-0 right-0 p-2 flex items-center space-x-2 z-50 transition-colors duration-300 ${isDarkMode ? 'bg-slate-800/90' : 'bg-gray-50/90'
+          }`}>
           <button
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2 rounded-md transition-all duration-200 ${
-              isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700' 
+            className={`p-2 rounded-md transition-all duration-200 ${isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            } ${isFullScreen ? 'hover:scale-110 active:scale-95' : ''}`}
+              } ${isFullScreen ? 'hover:scale-110 active:scale-95' : ''}`}
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
             {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <button 
+          <button
             onClick={resetCode}
-            className={`p-2 rounded-md transition-all duration-200 ${
-              isDarkMode 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700' 
+            className={`p-2 rounded-md transition-all duration-200 ${isDarkMode
+                ? 'text-gray-400 hover:text-gray-200 hover:bg-slate-700'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
-            } ${isFullScreen ? 'hover:scale-110 active:scale-95' : ''}`}
+              } ${isFullScreen ? 'hover:scale-110 active:scale-95' : ''}`}
             title="Reset Code"
           >
             <RotateCcw className="h-4 w-4" />
