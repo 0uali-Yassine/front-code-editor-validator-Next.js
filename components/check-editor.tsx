@@ -257,15 +257,12 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
   // Function to run the code and update the output
   const runCode = async () => {
     setOutput(''); // Clear previous output
-    
     try {
       switch (selectedLanguage) {
         case 'python':
           await runPythonCode();
           break;
         case 'javascript':
-          runJavaScriptCode();
-          break;
         case 'html':
         case 'css':
           renderHtmlCss();
@@ -277,6 +274,7 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
       setOutput(formatError(error));
     }
   };
+
 
   const runPythonCode = async () => {
     setOutput('Running Python code...\n');
@@ -322,38 +320,76 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
   };
 
 
+  // const renderHtmlCss = () => {
+  //   if (!iframeRef.current) return;
+    
+  //   const iframe = iframeRef.current;
+  //   const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    
+  //   if (!doc) return;
+    
+  //   if (selectedLanguage === 'html') {
+  //     doc.open();
+  //     doc.write(codes['html']);
+  //     doc.close();
+  //   } else {
+  //     // For CSS, create a basic HTML structure with the CSS
+  //     doc.open();
+  //     doc.write(`
+  //       <!DOCTYPE html>
+  //       <html>
+  //       <head>
+  //         <style>${codes['css']}</style>
+  //       </head>
+  //       <body>
+  //         <h1>CSS Preview</h1>
+  //         <p>This is a preview of your CSS styles</p>
+  //       </body>
+  //       </html>
+  //     `);
+  //     doc.close();
+  //   }
+    
+  //   setOutput('Rendered HTML/CSS in preview pane');
+  // };
+
   const renderHtmlCss = () => {
     if (!iframeRef.current) return;
-    
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    
-    if (!doc) return;
-    
-    if (selectedLanguage === 'html') {
-      doc.open();
-      doc.write(codes['html']);
-      doc.close();
-    } else {
-      // For CSS, create a basic HTML structure with the CSS
-      doc.open();
-      doc.write(`
+
+    // Completely reload the iframe to avoid redeclaration issues
+    iframe.src = 'about:blank';
+
+    // Wait for iframe to reload
+    iframe.onload = () => {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
+
+      const combinedCode = `
         <!DOCTYPE html>
         <html>
-        <head>
-          <style>${codes['css']}</style>
-        </head>
-        <body>
-          <h1>CSS Preview</h1>
-          <p>This is a preview of your CSS styles</p>
-        </body>
+          <head>
+            <style>
+              ${codes['css'] || ''}
+            </style>
+          </head>
+          <body>
+            ${codes['html'] || ''}
+            <script>
+              ${codes['javascript'] || ''}
+            </script>
+          </body>
         </html>
-      `);
+      `;
+
+      doc.open();
+      doc.write(combinedCode);
       doc.close();
-    }
-    
-    setOutput('Rendered HTML/CSS in preview pane');
+
+      setOutput('Rendered HTML/CSS/JS in preview pane');
+    };
   };
+
 
   function formatError(error:any) {
     // Check if it's a Python traceback
@@ -582,9 +618,9 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
                 sandbox="allow-scripts allow-same-origin"
               />
             ) : (
-              <div className="p-4 overflow-auto flex-grow">
+              <div className="p-4 overflow-auto flex-grow h-full">
                 {output ? (
-                  <pre className={`whitespace-pre-wrap ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                  <pre className={`whitespace-pre-wrap h-[100%] ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
                     {output}
                   </pre>
                 ) : (
@@ -642,22 +678,34 @@ const CheckEditor: React.FC<CheckEditorProps> = ({ data, Sections, onChange }) =
               </>
             )}
           </button>
-          <button  
-            onClick={runCode}
-            className={`
-              px-4 py-2 rounded-none font-medium tracking-wide uppercase text-xs
-              flex items-center justify-center min-w-[120px]
-              transition-all duration-200
-              ${isDarkMode
+          <button
+          onClick={runCode}
+          disabled={isPyodideLoading}
+          className={`
+            px-4 py-2 rounded-none font-medium tracking-wide uppercase text-xs
+            flex items-center justify-center min-w-[120px]
+            transition-all duration-200
+            ${isPyodideLoading
+              ? isDarkMode
+                ? 'bg-gray-700 text-gray-400 cursor-wait'
+                : 'bg-gray-200 text-gray-500 cursor-wait'
+              : isDarkMode
                 ? 'bg-transparent border-2 border-emerald-500 text-emerald-400 hover:bg-emerald-500/10 active:bg-emerald-500/20'
                 : 'bg-transparent border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100'
-              }
-              ${isFullScreen ? 'hover:scale-105 active:scale-95' : ''}
-            `}
-          >
+            }
+            ${isFullScreen ? 'hover:scale-105 active:scale-95' : ''}
+          `}
+        >
+          {isPyodideLoading ? (
+            <svg className="animate-spin h-3 w-3 mr-2" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
             <Play className="h-3 w-3 mr-2" />
-            Execute
-          </button>
+          )}
+          {isPyodideLoading ? 'Loading...' : 'Execute'}
+        </button>
         </div>
       </div>
 
