@@ -3,9 +3,11 @@ import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, FileText, Clock, Use
 import useSWR from 'swr';
 import CheckEditor from '../components/check-editor';
 import CodeEditore from '../components/code-editore';
+import MainEditore from '../components/main-editore';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { SectionType } from '../types';
+import PythonEditor from '@/components/python-editore';
 
 // Define the data structure
 interface ClassRoomData {
@@ -324,6 +326,13 @@ const ClassRoom: React.FC = () => {
           )}
         </div>
       </div>
+      {/* <div className='flex-1 p-4 bg-gray-100'>
+          <MainEditore />
+        </div>
+      <div className='flex-1 p-4 bg-gray-100'>
+      <PythonEditor />
+        </div> */}
+        
     </div>
   );
 };
