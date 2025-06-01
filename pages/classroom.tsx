@@ -327,16 +327,16 @@ const ClassRoom: React.FC = () => {
           )}
         </div>
       </div>
-      <div className='flex-1 p-4 bg-gray-100'>
+      {/* <div className='flex-1 p-4 bg-gray-100'>
           <MainEditore />
-        </div>
-      <div className='flex-1 p-4 bg-gray-100'>
+        </div> */}
+      {/* <div className='flex-1 p-4 bg-gray-100'>
       <PythonEditor />
-        </div>
-        <div className='flex-1 p-4 bg-gray-100'>
+        </div> */}
+        {/* <div className='flex-1 p-4 bg-gray-100'>
         <UnifiedEditor />
 
-        </div>
+        </div> */}
     </div>
   );
 };

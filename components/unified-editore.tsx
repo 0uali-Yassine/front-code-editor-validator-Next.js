@@ -13,7 +13,9 @@ import { materialDark } from '@uiw/codemirror-theme-material';
 import {
   Play, RotateCcw, Sun, Moon, Maximize2, Minimize2, Edit2, 
   Trash2, FilePlus2, X, FileText, Terminal, Settings, 
-  Download, Upload, Copy, BookOpen, Lightbulb, Code2
+  Download, Upload, Copy, BookOpen, Lightbulb, Code2, ChevronRight, ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor,
@@ -28,7 +30,7 @@ import { FaPython, FaJsSquare } from "react-icons/fa";
 import { FaHtml5, FaCss3Alt } from "react-icons/fa6";
 import JSZip from 'jszip';
 import { EditorView } from '@codemirror/view';
-import { indentUnit } from '@codemirror/language';
+import { indentUnit, language } from '@codemirror/language';
 
 type FileType = 'html' | 'css' | 'js' | 'py' | 'txt';
 
@@ -282,13 +284,23 @@ const UnifiedEditor = () => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [leftWidth, setLeftWidth] = useState(25);
+  const [editorWidth, setEditorWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingEditor, setIsDraggingEditor] = useState(false);
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [pyodide, setPyodide] = useState<any>(null);
   const [isPyodideLoading, setIsPyodideLoading] = useState(false);
   const [activeView, setActiveView] = useState<'web' | 'python'>('web');
   const [showTemplates, setShowTemplates] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isEditorExpanded, setIsEditorExpanded] = useState(false);
+  const [isOutputExpanded, setIsOutputExpanded] = useState(false);
+  const [prevLeftWidth, setPrevLeftWidth] = useState<number>(25);
+  const [prevEditorWidth, setPrevEditorWidth] = useState<number>(50);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -307,33 +319,122 @@ const UnifiedEditor = () => {
     localStorage.setItem('unified-editor-settings', JSON.stringify(settings));
   }, [settings]);
 
-  // Load Pyodide for Python execution
+  // Handle online/offline status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      // Try to save any pending changes when connection is restored
+      if (hasUnsavedChanges) {
+        localStorage.setItem('unified-editor-files', JSON.stringify(files));
+        setHasUnsavedChanges(false);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      // Save immediately when going offline
+      localStorage.setItem('unified-editor-files', JSON.stringify(files));
+    };
+
+    // Handle beforeunload to save changes
+    const handleBeforeUnload = () => {
+      localStorage.setItem('unified-editor-files', JSON.stringify(files));
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [files, hasUnsavedChanges]);
+
+  // Enhanced auto-save with offline support
+  useEffect(() => {
+    const saveToStorage = () => {
+      try {
+        localStorage.setItem('unified-editor-files', JSON.stringify(files));
+        setHasUnsavedChanges(false);
+      } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+      }
+    };
+
+    // Save immediately on file changes
+    saveToStorage();
+
+    // Additional periodic save if auto-save is enabled
+    if (settings.autoSave) {
+      const interval = setInterval(saveToStorage, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [files, settings.autoSave]);
+
+  // Load saved files from localStorage on initial load
+  useEffect(() => {
+    const savedFiles = localStorage.getItem('unified-editor-files');
+    if (savedFiles) {
+      setFiles(JSON.parse(savedFiles));
+    }
+  }, []);
+
+  // Separate Pyodide initialization into its own useEffect
   useEffect(() => {
     const loadPyodideInstance = async () => {
       setIsPyodideLoading(true);
       try {
         if (!window.loadPyodide) {
           const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js';
           script.onload = async () => {
             const pyodideInstance = await window.loadPyodide({
-              indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/',
-              stdout: (text: string) => setOutput(prev => prev + text),
+              indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+              stdout: (text: string) => {
+                text.split('\n').forEach((line, idx, arr) => {
+                  if (line !== '' || idx < arr.length - 1) {
+                    setOutput(prev => prev + line + '\n');
+                  }
+                });
+              },
               stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
             });
+            await pyodideInstance.loadPackage(['micropip']);
             setPyodide(pyodideInstance);
-            setOutput('✅ Python environment loaded! Ready to run Python code.\n');
+            setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+            setIsInitializing(false);
           };
           document.body.appendChild(script);
+        } else {
+          const pyodideInstance = await window.loadPyodide({
+            indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.23.4/full/',
+            stdout: (text: string) => {
+              text.split('\n').forEach((line, idx, arr) => {
+                if (line !== '' || idx < arr.length - 1) {
+                  setOutput(prev => prev + line + '\n');
+                }
+              });
+            },
+            stderr: (text: string) => setOutput(prev => prev + `\x1b[31m${text}\x1b[0m`),
+          });
+          await pyodideInstance.loadPackage(['micropip']);
+          setPyodide(pyodideInstance);
+          setOutput('✅ Pyodide loaded successfully! Ready to run Python code.\n');
+          setIsInitializing(false);
         }
       } catch (error) {
-        setOutput(`❌ Failed to load Python environment: ${error}\n`);
+        setOutput(`❌ Failed to load Pyodide: ${error}\n`);
+        setIsInitializing(false);
       } finally {
         setIsPyodideLoading(false);
       }
     };
+
+    // Start loading immediately
     loadPyodideInstance();
-  }, []);
+  }, []); // Empty dependency array means this runs once on mount
 
   // File management functions
   const getFile = (name: string) => files.find(f => f.name === name);
@@ -399,32 +500,56 @@ const UnifiedEditor = () => {
     }
   };
 
-  // Resize handler
+  // Handle mouse down events
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     e.preventDefault();
   };
 
+  const handleEditorMouseDown = (e: React.MouseEvent) => {
+    setIsDraggingEditor(true);
+    e.preventDefault();
+  };
+
+  // Handle mouse move and up events
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging || !containerRef.current) return;
-      const container = containerRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-      if (newLeftWidth >= 15 && newLeftWidth <= 50) {
-        setLeftWidth(newLeftWidth);
+      if (!containerRef.current) return;
+
+      if (isDragging) {
+        const container = containerRef.current;
+        const containerRect = container.getBoundingClientRect();
+        const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+        if (newLeftWidth >= 15 && newLeftWidth <= 50) {
+          setLeftWidth(newLeftWidth);
+        }
+      }
+
+      if (isDraggingEditor) {
+        const container = containerRef.current;
+        const containerRect = container.getBoundingClientRect();
+        const newEditorWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+        if (newEditorWidth >= 30 && newEditorWidth <= 70) {
+          setEditorWidth(newEditorWidth);
+        }
       }
     };
-    const handleMouseUp = () => setIsDragging(false);
-    if (isDragging) {
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsDraggingEditor(false);
+    };
+
+    if (isDragging || isDraggingEditor) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, isDraggingEditor]);
 
   // Web preview renderer (HTML/CSS/JS)
   const renderWebPreview = () => {
@@ -564,9 +689,9 @@ output
       });
       
       // Add README
-      const readmeContent = `# Unified Web & Python Project
+      const readmeContent = `# YZ Web & Python Project
 
-This project was exported from YZ Unified Code Editor.
+This project was exported from YZ  Code Editor.
 
 ## Files:
 ${files.map(f => `- ${f.name} (${f.type.toUpperCase()})`).join('\n')}
@@ -678,7 +803,7 @@ Happy coding! 🚀
     setTimeout(() => {
       const readmeContent = `# Web & Python Project Files
 
-These files were exported from YZ Unified Code Editor.
+These files were exported from YZ Code Editor.
 
 ## Setup Instructions:
 1. Create a new folder for your project
@@ -844,6 +969,23 @@ ${files.map(f => `- ${f.name}`).join('\n')}
               </select>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-2">Tab Size</label>
+              <select
+                value={settings.tabSize}
+                onChange={(e) => setSettings(prev => ({ ...prev, tabSize: parseInt(e.target.value) }))}
+                className={`w-full p-2 rounded border ${
+                  isDarkMode 
+                    ? 'bg-[#3c3c3c] border-[#464647] text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+              >
+                <option value={2}>2 spaces</option>
+                <option value={4}>4 spaces</option>
+                <option value={8}>8 spaces</option>
+              </select>
+            </div>
+
             <div className="space-y-3">
               <label className="flex items-center justify-between">
                 <span>Word Wrap</span>
@@ -861,6 +1003,16 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                   type="checkbox"
                   checked={settings.lineNumbers}
                   onChange={(e) => setSettings(prev => ({ ...prev, lineNumbers: e.target.checked }))}
+                  className="rounded"
+                />
+              </label>
+
+              <label className="flex items-center justify-between">
+                <span>Auto Save</span>
+                <input
+                  type="checkbox"
+                  checked={settings.autoSave}
+                  onChange={(e) => setSettings(prev => ({ ...prev, autoSave: e.target.checked }))}
                   className="rounded"
                 />
               </label>
@@ -958,6 +1110,53 @@ ${files.map(f => `- ${f.name}`).join('\n')}
     setIsFullScreen(!isFullScreen);
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+    if (!isSidebarCollapsed) {
+      // Store the previous width before collapsing
+      setPrevLeftWidth(leftWidth);
+      setLeftWidth(0);
+    } else {
+      // Restore the previous width
+      setLeftWidth(prevLeftWidth || 25);
+    }
+  };
+
+  const resetLayout = () => {
+    setEditorWidth(50);
+    setPrevEditorWidth(50);
+    setIsEditorExpanded(false);
+    setIsOutputExpanded(false);
+  };
+
+  const toggleEditorExpand = () => {
+    if (isEditorExpanded) {
+      // Collapse: Return to previous state
+      setEditorWidth(prevEditorWidth);
+      setIsEditorExpanded(false);
+    } else {
+      // Expand: Save current state and expand
+      setPrevEditorWidth(editorWidth);
+      setEditorWidth(100);
+      setIsEditorExpanded(true);
+      setIsOutputExpanded(false);
+    }
+  };
+
+  const toggleOutputExpand = () => {
+    if (isOutputExpanded) {
+      // Collapse: Return to previous state
+      setEditorWidth(prevEditorWidth);
+      setIsOutputExpanded(false);
+    } else {
+      // Expand: Save current state and expand
+      setPrevEditorWidth(editorWidth);
+      setEditorWidth(0);
+      setIsOutputExpanded(true);
+      setIsEditorExpanded(false);
+    }
+  };
+
   return (
     <div className="relative">
       <div
@@ -967,6 +1166,57 @@ ${files.map(f => `- ${f.name}`).join('\n')}
           isDarkMode ? "border-[#464647]" : "border-gray-200"
         }`}
       >
+        {/* Loading Overlay */}
+        {isInitializing && (
+          <div className={`absolute inset-0 z-50 flex flex-col items-center justify-center ${
+            isDarkMode ? 'bg-black/95' : 'bg-white/95'
+          }`}>
+            <div className="flex flex-col items-center space-y-4">
+              {/* Animated Code Editor Icon */}
+              <div className="relative w-16 h-16">
+                <div className={`absolute inset-0 border-2 rounded-lg animate-pulse ${
+                  isDarkMode ? 'border-gray-400' : 'border-gray-600'
+                }`} />
+                <div className={`absolute inset-2 flex items-center justify-center ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <Code2 className="w-8 h-8" />
+                </div>
+               
+              </div>
+              
+              {/* Loading Text */}
+              <div className={`text-sm font-medium ${
+                isDarkMode ? 'text-gray-200' : 'text-gray-800'
+              }`}>
+                Initializing Code Editor
+              </div>
+              
+              {/* Loading Progress Dots */}
+              <div className="flex space-x-2">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      isDarkMode 
+                        ? 'bg-gray-400 animate-bounce' 
+                        : 'bg-gray-600 animate-bounce'
+                    }`}
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  />
+                ))}
+              </div>
+
+              {/* Loading Status */}
+              <div className={`text-xs ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                Setting up your development environment...
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div
           className={`flex items-center justify-between px-4 py-2 border-b ${
@@ -975,9 +1225,43 @@ ${files.map(f => `- ${f.name}`).join('\n')}
         >
           <div className="flex items-center space-x-2">
             <span className="text-2xl font-bold">YZ</span>
-            <span className="text-sm font-medium ml-4">Student Code Editor</span>
+            <span className="text-sm font-medium ml-4">Code Editor</span>
           </div>
           <div className="flex items-center space-x-2">
+            {/* Run Both */}
+            {
+              activeView === 'web' ? (
+                <button
+                  onClick={renderWebPreview}
+                  className="px-3 py-1 flex items-center rounded text-xs font-medium text-white"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                </button>
+              ) : (
+                <button
+                  onClick={runPythonCode}
+                  disabled={isPyodideLoading}
+                  className={`
+                    flex items-center px-3 py-1 rounded text-xs font-medium
+                    transition-all duration-200
+                    ${isPyodideLoading ? " cursor-not-allowed" : ""}
+                    text-white
+                  `}
+                >
+                  {isPyodideLoading ? (
+                    <>
+                      <div className="animate-spin w-3 h-3 mr-2 border border-white border-t-transparent rounded-full"></div>
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 mr-2" />
+                    </>
+                  )}
+                </button>
+              )
+            }
+           
             {/* Code Templates */}
             <button
               onClick={() => setShowTemplates(true)}
@@ -1117,24 +1401,44 @@ ${files.map(f => `- ${f.name}`).join('\n')}
         <div className="flex flex-1 overflow-hidden">
           {/* Left Sidebar - File Explorer */}
           <div
-            className={`border-r transition-colors ${
+            className={`border-r transition-all duration-300 ${
               isDarkMode ? "bg-[#252526] border-[#464647]" : "bg-[#f8f8f8] border-gray-200"
-            }`}
-            style={{ width: `${leftWidth}%` }}
+            } ${isSidebarCollapsed ? 'w-0 opacity-0' : 'opacity-100'}`}
+            style={{ 
+              width: `${isSidebarCollapsed ? '0' : leftWidth}%`, 
+              minWidth: isSidebarCollapsed ? '0' : '200px',
+              overflow: isSidebarCollapsed ? 'hidden' : 'visible' 
+            }}
           >
-            <div
-              className={`flex items-center justify-between px-3 py-2 border-b text-xs font-semibold uppercase tracking-wide ${
-                isDarkMode ? "border-[#464647] text-[#cccccc]" : "border-gray-200 text-gray-600"
-              }`}
-            >
+            <div className={`flex items-center justify-between px-3 py-2 border-b text-xs font-semibold uppercase tracking-wide ${
+              isDarkMode ? "border-[#464647] text-[#cccccc]" : "border-gray-200 text-gray-600"
+            }`}>
               <span>Explorer</span>
-              <button
-                onClick={addFile}
-                className={`p-1 rounded transition-colors ${isDarkMode ? "hover:bg-[#37373d]" : "hover:bg-gray-200"}`}
-                title="New File"
-              >
-                <FilePlus2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-2">
+                
+                <button
+                  onClick={addFile}
+                  className={`p-1 rounded transition-colors ${
+                    isDarkMode ? "hover:bg-[#37373d]" : "hover:bg-gray-200"
+                  }`}
+                  title="New File"
+                >
+                  <FilePlus2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={toggleSidebar}
+                  className={`p-1 rounded transition-colors ${
+                    isDarkMode ? "hover:bg-[#37373d]" : "hover:bg-gray-200"
+                  }`}
+                  title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                >
+                  {isSidebarCollapsed ? (
+                    <ChevronsRight className="w-4 h-4" />
+                  ) : (
+                    <ChevronsLeft className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1148,6 +1452,8 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                       isDarkMode={isDarkMode}
                       onClick={(name) => {
                         setActiveFile(name);
+                        // if u add more language add more conditional
+                        setActiveView(name.endsWith('.py') ? 'python' : 'web');
                         setOpenTabs(tabs => {
                           if (!tabs.includes(name)) {
                             return [...tabs, name];
@@ -1168,13 +1474,26 @@ ${files.map(f => `- ${f.name}`).join('\n')}
             </DndContext>
           </div>
 
-          {/* Resize Handle */}
-          <div
-            className={`w-1 cursor-col-resize transition-colors ${
-              isDragging ? "bg-blue-500" : isDarkMode ? "bg-[#464647] hover:bg-blue-500" : "bg-gray-200 hover:bg-blue-500"
-            }`}
-            onMouseDown={handleMouseDown}
-          />
+          {/* Add a floating button that appears when sidebar is collapsed */}
+          {isSidebarCollapsed && (
+            <div 
+              className={`absolute left-0 top-1/2 transform -translate-y-1/2 z-20 ${
+                isDarkMode ? 'bg-[#252526]' : 'bg-[#f8f8f8]'
+              }`}
+            >
+              <button
+                onClick={toggleSidebar}
+                className={`p-1.5 rounded-r border border-l-0 transition-colors ${
+                  isDarkMode 
+                    ? "bg-[#252526] border-[#464647] text-gray-400 hover:text-gray-200 hover:bg-[#37373d]" 
+                    : "bg-[#f8f8f8] border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-200"
+                }`}
+                title="Show Explorer"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Main Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden" ref={containerRef}>
@@ -1184,6 +1503,7 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                 isDarkMode ? "bg-[#2d2d30] border-[#464647]" : "bg-[#f8f8f8] border-gray-200"
               }`}
             >
+              
               {openTabs.map(tab => (
                 <div
                   key={tab}
@@ -1196,7 +1516,10 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                         ? "bg-[#2d2d30] text-[#969696] hover:text-[#cccccc] border-r-[#464647]"
                         : "bg-[#f8f8f8] text-gray-600 hover:text-gray-900 border-r-gray-200"
                   }`}
-                  onClick={() => setActiveFile(tab)}
+                  onClick={() => {
+                    setActiveFile(tab);
+                    setActiveView(tab.endsWith('.py') ? 'python' : 'web');
+                  }}
                 >
                   {getFileIcon(tab)}
                   <span className="text-sm font-mono truncate ml-2">{tab}</span>
@@ -1218,7 +1541,25 @@ ${files.map(f => `- ${f.name}`).join('\n')}
             {/* Editor and Preview/Output */}
             <div className="flex flex-1 overflow-hidden">
               {/* Code Editor */}
-              <div className="flex-1 overflow-hidden">
+              <div 
+                className="overflow-hidden relative" 
+                style={{ width: `${editorWidth}%` }}
+              >
+                <div className="absolute top-2 right-2 z-10 flex items-center space-x-2">
+                  {!isOutputExpanded && (
+                    <button
+                      onClick={toggleEditorExpand}
+                      className={`p-1 rounded-md transition-colors ${
+                        isDarkMode 
+                          ? 'bg-[#37373d] hover:bg-[#45454d] text-white' 
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      }`}
+                      title={isEditorExpanded ? "Collapse Editor" : "Expand Editor"}
+                    >
+                      {isEditorExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
                 {active && (
                   <CodeMirror
                     value={active.content}
@@ -1229,9 +1570,10 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                       indentUnit.of(' '.repeat(settings.tabSize)),
                       settings.wordWrap ? EditorView.lineWrapping : [],
                     ]}
-                    onChange={(v) =>
-                      setFiles(files => files.map(f => f.name === active.name ? { ...f, content: v } : f))
-                    }
+                    onChange={(v) => {
+                      setFiles(files => files.map(f => f.name === active.name ? { ...f, content: v } : f));
+                      setHasUnsavedChanges(true);
+                    }}
                     className="h-full"
                     style={{ fontSize: settings.fontSize }}
                     basicSetup={{
@@ -1250,36 +1592,36 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                 )}
               </div>
 
+              {/* Resize Handle for Editor/Output split */}
+              <div
+                className={`w-1 cursor-col-resize transition-colors ${
+                  isDraggingEditor ? "bg-blue-500" : isDarkMode ? "bg-[#464647] hover:bg-blue-500" : "bg-gray-200 hover:bg-blue-500"
+                }`}
+                onMouseDown={handleEditorMouseDown}
+              />
+
               {/* Preview/Output Panel */}
               <div
-                className={`w-80 border-l flex flex-col ${
+                className={`border-l flex flex-col relative ${
                   isDarkMode ? "bg-[#1e1e1e] border-[#464647]" : "bg-white border-gray-200"
                 }`}
+                style={{ width: `${100 - editorWidth}%` }}
               >
-                {/* View Toggle */}
-                <div className={`flex border-b ${isDarkMode ? 'border-[#464647]' : 'border-gray-200'}`}>
-                  <button
-                    onClick={() => setActiveView('web')}
-                    className={`flex-1 px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-                      activeView === 'web'
-                        ? isDarkMode ? 'bg-[#37373d] text-white' : 'bg-gray-100 text-gray-900'
-                        : isDarkMode ? 'text-[#cccccc] hover:bg-[#2a2d2e]' : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    🌐 Web Preview
-                  </button>
-                  <button
-                    onClick={() => setActiveView('python')}
-                    className={`flex-1 px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
-                      activeView === 'python'
-                        ? isDarkMode ? 'bg-[#37373d] text-white' : 'bg-gray-100 text-gray-900'
-                        : isDarkMode ? 'text-[#cccccc] hover:bg-[#2a2d2e]' : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    🐍 Python Output
-                  </button>
+                <div className="absolute top-2 right-2 z-10 flex items-center space-x-2">
+                  {!isEditorExpanded && (
+                    <button
+                      onClick={toggleOutputExpand}
+                      className={`p-1 rounded-md transition-colors ${
+                        isDarkMode 
+                          ? 'bg-[#37373d] hover:bg-[#45454d] text-white' 
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      }`}
+                      title={isOutputExpanded ? "Collapse Output" : "Expand Output"}
+                    >
+                      {isOutputExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
-
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
                   {activeView === 'web' ? (
@@ -1310,6 +1652,25 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                     </div>
                   )}
                 </div>
+                <div
+                 className={`border-t p-3 ${
+                   isDarkMode ? "border-[#464647] bg-[#252526]" : "border-gray-200 bg-gray-50"
+                 }`}
+               >
+                 <div className="flex items-center mb-2">
+                   <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
+                   <span className="text-xs font-semibold uppercase tracking-wide">
+                     Learning Tip
+                   </span>
+                 </div>
+                 <div className={`text-xs ${isDarkMode ? "text-[#cccccc]" : "text-gray-700"}`}>
+                   {activeFile.endsWith('.py') && "💡 Use print() to debug your code step by step!"}
+                   {activeFile.endsWith('.js') && "💡 Use console.log() to see variable values!"}
+                   {activeFile.endsWith('.html') && "💡 Remember to close your HTML tags properly!"}
+                   {activeFile.endsWith('.css') && "💡 Use the inspector to see how your styles apply!"}
+                   {!activeFile.includes('.') && "💡 Save your file with the right extension (.py, .js, .html, .css)"}
+                 </div>
+               </div>
               </div>
             </div>
 
@@ -1331,14 +1692,17 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                 <span>{active?.content.split("\n").length || 0} lines</span>
                 <span>{activeFile}</span>
                 {isPyodideLoading && <span>🔄 Loading Python...</span>}
+                {settings.autoSave && <span>🔄 Auto-save enabled</span>}
+                {isOffline && <span className="text-yellow-500">📶 Offline - Changes saved locally</span>}
+                {hasUnsavedChanges && !isOffline && <span className="text-yellow-500">�� Saving...</span>}
               </div>
               <div className="flex space-x-2">
-                <button
+                {/* <button
                   onClick={renderWebPreview}
                   className="px-3 py-1 rounded text-xs font-medium bg-orange-600 hover:bg-orange-700 text-white"
                 >
                   🌐 Preview Web
-                </button>
+                </button> */}
                 {/* <button
                   onClick={runPythonCode}
                   disabled={isPyodideLoading || !files.some(f => f.type === 'py')}
@@ -1350,7 +1714,7 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                 >
                   {isPyodideLoading ? 'Loading...' : ' Run Python'}
                 </button> */}
-                <button
+                {/* <button
                onClick={runPythonCode}
                disabled={isPyodideLoading || !activeFile.endsWith('.py')}
                className={`
@@ -1373,7 +1737,7 @@ ${files.map(f => `- ${f.name}`).join('\n')}
                    {activeFile.endsWith('.py') ? 'Run Python' : 'Select Python file'}
                  </>
                )}
-             </button>
+             </button> */}
               </div>
             </div>
           </div>
