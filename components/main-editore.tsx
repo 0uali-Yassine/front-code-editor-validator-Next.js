@@ -35,7 +35,7 @@ const defaultFiles: FileData[] = [
   { name: 'index.html', type: 'html', content: '<h1>Hello World!</h1>' },
   { name: 'style.css', type: 'css', content: 'body { background: #f0f0f0; }' },
   { name: 'main.js', type: 'js', content: 'console.log("Hello from JS!");' },
-]; 
+];
 
 const getLanguageExtension = (type: FileType) => {
   switch (type) {
@@ -295,7 +295,7 @@ const MainEditore = () => {
 
       if (scripts) {
         if (html.includes('</body>')) {
-          html = html.replace('</body>', `${scripts}</body>`);
+      html = html.replace('</body>', `${scripts}</body>`);
         } else {
           html += scripts;
         }
@@ -352,7 +352,7 @@ const MainEditore = () => {
         <SortableContext items={files.map(f => f.name)} strategy={horizontalListSortingStrategy}>
           <div className={`border-b p-3 flex items-center justify-between transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
             <div className="flex items-center space-x-2">
-              {files.map(f => (
+        {files.map(f => (
                 <SortableTab
                   key={f.name}
                   file={f}
@@ -367,18 +367,18 @@ const MainEditore = () => {
                   setRenameValue={setRenameValue}
                   listeners={undefined}
                 />
-              ))}
-              <div className="ml-2 flex space-x-1">
-                <button onClick={() => addFile('html')} className="text-xs px-2 py-1 bg-blue-100 rounded">+HTML</button>
-                <button onClick={() => addFile('css')} className="text-xs px-2 py-1 bg-green-100 rounded">+CSS</button>
-                <button onClick={() => addFile('js')} className="text-xs px-2 py-1 bg-yellow-100 rounded">+JS</button>
+        ))}
+        <div className="ml-2 flex space-x-1">
+          <button onClick={() => addFile('html')} className="text-xs px-2 py-1 bg-blue-100 rounded">+HTML</button>
+          <button onClick={() => addFile('css')} className="text-xs px-2 py-1 bg-green-100 rounded">+CSS</button>
+          <button onClick={() => addFile('js')} className="text-xs px-2 py-1 bg-yellow-100 rounded">+JS</button>
               </div>
-            </div>
-            <button
-              onClick={() => setIsDarkMode(d => !d)}
-              className="ml-auto px-2 py-1 text-xs"
-            >{isDarkMode ? '🌙' : '☀️'}</button>
-          </div>
+        </div>
+        <button
+          onClick={() => setIsDarkMode(d => !d)}
+          className="ml-auto px-2 py-1 text-xs"
+        >{isDarkMode ? '🌙' : '☀️'}</button>
+      </div>
         </SortableContext>
       </DndContext>
       {/* Main Editor + Preview Area */}
@@ -396,12 +396,12 @@ const MainEditore = () => {
           )}
         </div>
         <div className="flex-1 flex flex-col">
-          <iframe
-            ref={iframeRef}
-            title="preview"
-            className="flex-grow w-full h-full border-0"
-            sandbox="allow-scripts allow-same-origin"
-          />
+            <iframe
+              ref={iframeRef}
+              title="preview"
+              className="flex-grow w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin"
+            />
         </div>
       </div>
       {/* Footer */}
